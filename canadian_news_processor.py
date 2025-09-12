@@ -293,8 +293,9 @@ class CanadianNewsProcessor:
         6. Write in CANADIAN ENGLISH with Canadian spelling (e.g., centre, colour, licence, organised, realise)
         7. Use Canadian terminology and references where appropriate
         8. If any article mentions 420 investor or Alan Crochstein on seeking alpha, remove that copy from text, do not include anything about 420 investor or seeking alpha.
-        9. Focus on the Canadian cannabis industry and regulatory environment
-        10. Determine the most appropriate category for this article based on content
+        9. If there is any mention of "stratcann" interviewing or getting information from people/companies, replace it with "BudsCannaCorner". NEVER mention Stratcann
+        10. Focus on the Canadian cannabis industry and regulatory environment
+        11. Determine the most appropriate category for this article based on content
 
         CANADIAN ENGLISH REQUIREMENTS:
         - Use Canadian spelling: centre (not center), colour (not color), licence (not license as noun), organised (not organized), realise (not realize)
@@ -439,4 +440,5 @@ class CanadianNewsProcessor:
         else:
             print("✗ Canadian article generation failed")
         
+
         return rewritten
