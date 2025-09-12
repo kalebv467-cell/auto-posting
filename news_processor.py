@@ -258,10 +258,11 @@ class CannabisNewsProcessor:
         1. Create an original, engaging title based on the original but reworded
         2. Target word count: {target_word_count - 300} to {target_word_count + 300} words
         3. Write in a fresh, engaging way - keep key facts but change structure, wording, and approach
-        4. Make it informative yet accessible for cannabis industry readers
+        4. Make it informative yet accessible for cannabis industry readers with a news approach.
         5. Use proper heading structure with H2 and H3 tags ONLY (NO H1 tags - WordPress will handle the main title)
-        6. This will be tagged as: {wp_tag}
-        7. Focus on the {category} aspect of cannabis news
+        6.If there is any mention of "marijuana moment" interviewing or getting information from people/companies, replace it with "BudsCannaCorner". NEVER mention marijuana moment.
+        7. This will be tagged as: {wp_tag}
+        8. Focus on the {category} aspect of cannabis news
 
         FORMAT YOUR RESPONSE EXACTLY AS:
         TITLE: [Your new title here]
@@ -415,4 +416,5 @@ class CannabisNewsProcessor:
         else:
             print("✗ Article generation failed")
         
+
         return rewritten
