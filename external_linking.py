@@ -26,6 +26,7 @@ class ExternalLinking:
            'youtube.com',
            'linkedin.com',
            'pinterest.com',
+           'bit.ly',
            'reddit.com'
        ]
    
@@ -232,4 +233,5 @@ class ExternalLinking:
            
        except Exception as e:
            print(f"Error adding external links: {e}")
+
            return content
