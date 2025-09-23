@@ -1,3 +1,4 @@
+
 import schedule
 import time
 import sys
@@ -62,6 +63,59 @@ class ContentAutomation:
                
        except Exception as e:
            print(f"❌ Error posting US cannabis content: {e}")
+           import traceback
+           traceback.print_exc()
+           return False
+
+   def post_us_news_content_2(self):
+       """Post single US cannabis news content using processor 2"""
+       print(f"[{datetime.now()}] Posting US cannabis news 2...")
+       
+       try:
+           from news_processor_2 import CannabisNewsProcessor2
+           news_processor_2 = CannabisNewsProcessor2()
+           
+           rewritten_article = news_processor_2.get_cannabis_article()
+           if rewritten_article:
+               # Get featured image
+               featured_image_id = self.image_manager.get_featured_image_for_article(
+                   rewritten_article['category'], 
+                   rewritten_article['title']
+               )
+               
+               # Post to WordPress
+               result = self.wp_api.create_news_post(
+                   rewritten_article['title'], 
+                   rewritten_article['content'], 
+                   status='publish',
+                   categories=['Cannabis News'],
+                   tags=rewritten_article['tags'],
+                   featured_image_id=featured_image_id,
+                   author_name='rohan'
+               )
+               
+               if result:
+                   print(f"✅ Posted US cannabis news 2: {rewritten_article['title']}")
+                   print(f"Category: {rewritten_article['category']}, Tags: {', '.join(rewritten_article['tags'])}")
+                   if featured_image_id:
+                       print(f"✅ Added featured image: {featured_image_id}")
+                   
+                   # Update tracking with WordPress post ID
+                   if 'original_url' in rewritten_article:
+                       news_processor_2.article_tracker.update_wordpress_id(
+                           rewritten_article['original_url'], 
+                           result.get('id')
+                       )
+                   return True
+               else:
+                   print("❌ Failed to post US cannabis news 2")
+                   return False
+           else:
+               print("No US cannabis news 2 articles found")
+               return False
+               
+       except Exception as e:
+           print(f"❌ Error posting US cannabis news 2 content: {e}")
            import traceback
            traceback.print_exc()
            return False
@@ -161,6 +215,17 @@ def post_us_news():
         print("❌ US news post failed")
         sys.exit(1)
 
+def post_us_news_2():
+    """Post a single US news 2 article - for cron scheduling"""
+    print(f"=== SCHEDULED US NEWS 2 POST - {datetime.now()} ===")
+    automation = ContentAutomation()
+    success = automation.post_us_news_content_2()
+    if success:
+        print("✅ US news 2 post completed successfully")
+    else:
+        print("❌ US news 2 post failed")
+        sys.exit(1)
+
 def post_canadian_news():
     """Post a single Canadian news article - for cron scheduling"""
     print(f"=== SCHEDULED CANADIAN NEWS POST - {datetime.now()} ===")
@@ -179,6 +244,8 @@ if __name__ == "__main__":
        
        if command == "post_us":
            post_us_news()
+       elif command == "post_us_2":
+           post_us_news_2()
        elif command == "post_canadian":
            post_canadian_news()
        elif command == "test_us":
@@ -191,6 +258,7 @@ if __name__ == "__main__":
            print(f"Unknown command: {command}")
            print("Available commands:")
            print("  python main.py post_us")
+           print("  python main.py post_us_2")
            print("  python main.py post_canadian") 
            print("  python main.py test_us")
            print("  python main.py test_canadian")
