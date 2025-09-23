@@ -91,7 +91,7 @@ class ContentAutomation:
                    categories=['Cannabis News'],
                    tags=rewritten_article['tags'],
                    featured_image_id=featured_image_id,
-                   author_name='rohan'
+                   author_name='kaleb'
                )
                
                if result:
@@ -287,3 +287,4 @@ if __name__ == "__main__":
            post_canadian_news()
        else:
            print("Invalid choice")
+
