@@ -200,6 +200,49 @@ class CannabisNewsProcessor2:
             return 'culture'
         else:
             return 'business'
+    
+    def is_article_url(self, url):
+        """Check if URL looks like an actual article (not navigation)"""
+        if not url.startswith('https://www.cannabisbusinesstimes.com/'):
+            return False
+        
+        # Remove the base URL to get the path
+        path = url.replace('https://www.cannabisbusinesstimes.com/', '')
+        
+        # Skip patterns that are NOT articles
+        skip_patterns = [
+            'category/',
+            'tag/',
+            'author/',
+            'page/',
+            'about/',
+            'contact/',
+            'privacy/',
+            'terms/',
+            'feed/',
+            'wp-',
+            '?',
+            '#'
+        ]
+        
+        # If it contains any skip patterns, it's not an article
+        if any(pattern in path for pattern in skip_patterns):
+            return False
+        
+        # If it's just the homepage or very short, skip
+        if len(path.strip('/')) < 10:
+            return False
+        
+        # Article URLs should have multiple words separated by hyphens
+        path_clean = path.strip('/')
+        if path_clean.count('-') < 2:
+            return False
+        
+        # Should not end with common non-article extensions
+        if path.endswith(('.jpg', '.png', '.pdf', '.zip', '.css', '.js')):
+            return False
+        
+        return True
         """Check if URL looks like an actual article (not navigation)"""
         if not url.startswith('https://www.cannabisbusinesstimes.com/'):
             return False
