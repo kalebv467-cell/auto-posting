@@ -18,6 +18,8 @@ class ExternalLinking:
            'stratcann.com',  # Added Canadian source
            'newcannabisventures.com',  # Added Canadian source
            'seekingalpha.com',
+           'cannabisbusinesstimes.com',
+           'hemptoday.net',
            'form.jotform.com',
            'patreon.com',
            'facebook.com',
@@ -235,3 +237,4 @@ class ExternalLinking:
            print(f"Error adding external links: {e}")
 
            return content
+
