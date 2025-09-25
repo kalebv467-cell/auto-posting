@@ -1,4 +1,3 @@
-
 import schedule
 import time
 import sys
@@ -24,6 +23,9 @@ class ContentAutomation:
        try:
            rewritten_article = self.news_processor.get_cannabis_article()
            if rewritten_article:
+               # Add ad inserter shortcode to content
+               rewritten_article['content'] = '[adinserter block="3"]\n\n' + rewritten_article['content']
+               
                # Get featured image
                featured_image_id = self.image_manager.get_featured_image_for_article(
                    rewritten_article['category'], 
@@ -77,6 +79,9 @@ class ContentAutomation:
            
            rewritten_article = news_processor_2.get_cannabis_article()
            if rewritten_article:
+               # Add ad inserter shortcode to content
+               rewritten_article['content'] = '[adinserter block="3"]\n\n' + rewritten_article['content']
+               
                # Get featured image
                featured_image_id = self.image_manager.get_featured_image_for_article(
                    rewritten_article['category'], 
@@ -91,7 +96,7 @@ class ContentAutomation:
                    categories=['Cannabis News'],
                    tags=rewritten_article['tags'],
                    featured_image_id=featured_image_id,
-                   author_name='kaleb'
+                   author_name='rohan'
                )
                
                if result:
@@ -127,6 +132,9 @@ class ContentAutomation:
        try:
            rewritten_article = self.canadian_processor.get_canadian_article()
            if rewritten_article:
+               # Add ad inserter shortcode to content
+               rewritten_article['content'] = '[adinserter block="3"]\n\n' + rewritten_article['content']
+               
                # Get featured image
                featured_image_id = self.image_manager.get_featured_image_for_article(
                    'canadian', 
@@ -287,4 +295,3 @@ if __name__ == "__main__":
            post_canadian_news()
        else:
            print("Invalid choice")
-
