@@ -5,6 +5,7 @@ from config import ANTHROPIC_API_KEY, WP_TAG_MAPPING
 from article_tracker import ArticleTracker
 from internal_linking import InternalLinking
 from external_linking import ExternalLinking
+from permanent_url_tracker import PermanentURLTracker
 import random
 import time
 
@@ -14,6 +15,7 @@ class CanadianNewsProcessor:
         self.article_tracker = ArticleTracker()
         self.internal_linking = InternalLinking()
         self.external_linking = ExternalLinking()
+        self.url_tracker = PermanentURLTracker()  # NEW: Permanent URL blacklist
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
@@ -53,8 +55,8 @@ class CanadianNewsProcessor:
                 # Randomize and process articles
                 random.shuffle(article_links)
                 for article_link in article_links[:5]:
-                    if self.article_tracker.is_article_used(article_link['url']):
-                        print(f"  Skipping already used: {article_link['title'][:50]}...")
+                    # NEW: Check permanent URL blacklist
+                    if self.url_tracker.is_url_blacklisted(article_link['url']):
                         continue
                         
                     content = self.extract_generic_content(article_link['url'])
@@ -107,8 +109,8 @@ class CanadianNewsProcessor:
                 # Randomize and process articles
                 random.shuffle(article_links)
                 for article_link in article_links[:5]:
-                    if self.article_tracker.is_article_used(article_link['url']):
-                        print(f"  Skipping already used: {article_link['title'][:50]}...")
+                    # NEW: Check permanent URL blacklist
+                    if self.url_tracker.is_url_blacklisted(article_link['url']):
                         continue
                         
                     content = self.extract_generic_content(article_link['url'])
@@ -157,7 +159,8 @@ class CanadianNewsProcessor:
                             'cannabis' in href.lower() and
                             len(text) > 10):
                             
-                            if self.article_tracker.is_article_used(href):
+                            # NEW: Check permanent URL blacklist
+                            if self.url_tracker.is_url_blacklisted(href):
                                 continue
                                 
                             content = self.extract_generic_content(href)
@@ -245,7 +248,6 @@ class CanadianNewsProcessor:
         
         print(f"Total Canadian articles scraped: {len(all_articles)}")
         unused_articles = self.article_tracker.get_unused_articles(all_articles)
-        self.article_tracker.cleanup_old_entries()
         
         return unused_articles
     
@@ -393,6 +395,11 @@ class CanadianNewsProcessor:
             print("No suitable Canadian article found")
             return None
         
+        # IMMEDIATELY blacklist the URL permanently
+        print(f"PERMANENTLY BLACKLISTING URL: {chosen_article['url']}")
+        self.url_tracker.blacklist_url(chosen_article['url'], chosen_article['title'])
+        
+        # Keep old tracking for backwards compatibility
         self.article_tracker.mark_article_used(
             chosen_article['url'], 
             chosen_article['title'], 
@@ -440,5 +447,4 @@ class CanadianNewsProcessor:
         else:
             print("✗ Canadian article generation failed")
         
-
         return rewritten
