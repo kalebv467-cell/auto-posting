@@ -5,6 +5,7 @@ from config import ANTHROPIC_API_KEY, WP_TAG_MAPPING
 from article_tracker import ArticleTracker
 from internal_linking import InternalLinking
 from external_linking import ExternalLinking
+from permanent_url_tracker import PermanentURLTracker
 import random
 import time
 
@@ -14,6 +15,7 @@ class CannabisNewsProcessor2:
         self.article_tracker = ArticleTracker()
         self.internal_linking = InternalLinking()
         self.external_linking = ExternalLinking()
+        self.url_tracker = PermanentURLTracker()  # NEW: Permanent URL blacklist
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
@@ -63,9 +65,8 @@ class CannabisNewsProcessor2:
                     article_url = article_link['url']
                     title = article_link['title']
                     
-                    # Skip if already used by ANY processor
-                    if self.is_article_used_anywhere(article_url):
-                        print(f"  Skipping already used: {title[:50]}...")
+                    # NEW: Check permanent URL blacklist
+                    if self.url_tracker.is_url_blacklisted(article_url):
                         continue
                     
                     print(f"  Processing: {article_url}")
@@ -133,9 +134,8 @@ class CannabisNewsProcessor2:
                 # Randomize and process articles
                 random.shuffle(article_links)
                 for article_link in article_links[:5]:
-                    # Skip if already used by ANY processor
-                    if self.is_article_used_anywhere(article_link['url']):
-                        print(f"  Skipping already used: {article_link['title'][:50]}...")
+                    # NEW: Check permanent URL blacklist
+                    if self.url_tracker.is_url_blacklisted(article_link['url']):
                         continue
                         
                     content = self.extract_generic_content(article_link['url'])
@@ -155,11 +155,6 @@ class CannabisNewsProcessor2:
             print(f"Error scraping Hemp Today: {e}")
         
         return articles
-    
-    def is_article_used_anywhere(self, url):
-        """Check if article is used by ANY processor to prevent duplication"""
-        # Check with the shared article tracker
-        return self.article_tracker.is_article_used(url)
     
     def determine_category(self, content, title):
         """Determine article category based on content and title"""
@@ -202,47 +197,6 @@ class CannabisNewsProcessor2:
             return 'business'
     
     def is_article_url(self, url):
-        """Check if URL looks like an actual article (not navigation)"""
-        if not url.startswith('https://www.cannabisbusinesstimes.com/'):
-            return False
-        
-        # Remove the base URL to get the path
-        path = url.replace('https://www.cannabisbusinesstimes.com/', '')
-        
-        # Skip patterns that are NOT articles
-        skip_patterns = [
-            'category/',
-            'tag/',
-            'author/',
-            'page/',
-            'about/',
-            'contact/',
-            'privacy/',
-            'terms/',
-            'feed/',
-            'wp-',
-            '?',
-            '#'
-        ]
-        
-        # If it contains any skip patterns, it's not an article
-        if any(pattern in path for pattern in skip_patterns):
-            return False
-        
-        # If it's just the homepage or very short, skip
-        if len(path.strip('/')) < 10:
-            return False
-        
-        # Article URLs should have multiple words separated by hyphens
-        path_clean = path.strip('/')
-        if path_clean.count('-') < 2:
-            return False
-        
-        # Should not end with common non-article extensions
-        if path.endswith(('.jpg', '.png', '.pdf', '.zip', '.css', '.js')):
-            return False
-        
-        return True
         """Check if URL looks like an actual article (not navigation)"""
         if not url.startswith('https://www.cannabisbusinesstimes.com/'):
             return False
@@ -350,11 +304,8 @@ class CannabisNewsProcessor2:
         
         print(f"Total articles scraped: {len(all_articles)}")
         
-        # Filter out already used articles
+        # Filter out already used articles (keeping for backwards compatibility)
         unused_articles = self.article_tracker.get_unused_articles(all_articles)
-        
-        # Clean up old entries occasionally
-        self.article_tracker.cleanup_old_entries()
         
         return unused_articles
     
@@ -498,25 +449,29 @@ class CannabisNewsProcessor2:
             print("No suitable article found")
             return None
         
-        # Step 3: Mark article as used BEFORE rewriting
+        # Step 3: IMMEDIATELY blacklist the URL permanently
+        print(f"PERMANENTLY BLACKLISTING URL: {chosen_article['url']}")
+        self.url_tracker.blacklist_url(chosen_article['url'], chosen_article['title'])
+        
+        # Step 4: Mark article as used (keeping for backwards compatibility)
         self.article_tracker.mark_article_used(
             chosen_article['url'], 
             chosen_article['title'], 
             chosen_article['category']
         )
         
-        # Step 4: Extract external links from original article
+        # Step 5: Extract external links from original article
         print("Extracting external links from original article...")
         original_external_links = self.external_linking.extract_links_from_original(chosen_article['url'])
         
-        # Step 5: Rewrite with Claude
+        # Step 6: Rewrite with Claude
         print(f"Rewriting article: {chosen_article['title'][:50]}...")
         rewritten = self.rewrite_cannabis_article(chosen_article)
         
         if rewritten:
             print("✓ Article generation completed successfully")
             
-            # Step 6: Add primary tag and secondary tag
+            # Step 7: Add primary tag and secondary tag
             secondary_tag = rewritten.get('tag', 'business')
             rewritten['tags'] = ['US Cannabis News', secondary_tag]
             
@@ -524,24 +479,24 @@ class CannabisNewsProcessor2:
             if 'tag' in rewritten:
                 del rewritten['tag']
             
-            # Step 7: Add internal links
+            # Step 8: Add internal links
             print("Adding internal links...")
             rewritten['content'] = self.internal_linking.add_internal_links(
                 rewritten['content'], 
                 rewritten['title']
             )
             
-            # Step 8: Find additional external sources if needed
+            # Step 9: Find additional external sources if needed
             additional_sources = self.external_linking.find_additional_sources(
                 rewritten['content'], 
                 rewritten['title'], 
                 len(original_external_links)
             )
             
-            # Step 9: Combine all external links
+            # Step 10: Combine all external links
             all_external_links = original_external_links + additional_sources
             
-            # Step 10: Add external links to content
+            # Step 11: Add external links to content
             if all_external_links:
                 rewritten['content'] = self.external_linking.add_external_links_to_content(
                     rewritten['content'], 
