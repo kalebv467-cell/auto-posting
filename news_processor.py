@@ -5,6 +5,7 @@ from config import ANTHROPIC_API_KEY, WP_TAG_MAPPING
 from article_tracker import ArticleTracker
 from internal_linking import InternalLinking
 from external_linking import ExternalLinking
+from permanent_url_tracker import PermanentURLTracker
 import random
 import time
 
@@ -14,6 +15,7 @@ class CannabisNewsProcessor:
         self.article_tracker = ArticleTracker()
         self.internal_linking = InternalLinking()
         self.external_linking = ExternalLinking()
+        self.url_tracker = PermanentURLTracker()  # NEW: Permanent URL blacklist
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
@@ -70,9 +72,8 @@ class CannabisNewsProcessor:
                         article_url = article_link['url']
                         title = article_link['title']
                         
-                        # Skip if already used (check early to save time)
-                        if self.article_tracker.is_article_used(article_url):
-                            print(f"  Skipping already used: {title[:50]}...")
+                        # NEW: Check permanent URL blacklist
+                        if self.url_tracker.is_url_blacklisted(article_url):
                             continue
                         
                         print(f"  Processing: {article_url}")
@@ -202,11 +203,8 @@ class CannabisNewsProcessor:
         
         print(f"Total articles scraped: {len(articles)}")
         
-        # Filter out already used articles
+        # Filter out already used articles (keeping this for backwards compatibility)
         unused_articles = self.article_tracker.get_unused_articles(articles)
-        
-        # Clean up old entries occasionally
-        self.article_tracker.cleanup_old_entries()
         
         return unused_articles
     
@@ -258,11 +256,10 @@ class CannabisNewsProcessor:
         1. Create an original, engaging title based on the original but reworded
         2. Target word count: {target_word_count - 300} to {target_word_count + 300} words
         3. Write in a fresh, engaging way - keep key facts but change structure, wording, and approach
-        4. Make it informative yet accessible for cannabis industry readers with a news approach.
+        4. Make it informative yet accessible for cannabis industry readers
         5. Use proper heading structure with H2 and H3 tags ONLY (NO H1 tags - WordPress will handle the main title)
-        6.If there is any mention of "marijuana moment" interviewing or getting information from people/companies, replace it with "BudsCannaCorner". NEVER mention marijuana moment.
-        7. This will be tagged as: {wp_tag}
-        8. Focus on the {category} aspect of cannabis news
+        6. This will be tagged as: {wp_tag}
+        7. Focus on the {category} aspect of cannabis news
 
         FORMAT YOUR RESPONSE EXACTLY AS:
         TITLE: [Your new title here]
@@ -359,25 +356,29 @@ class CannabisNewsProcessor:
             print("No suitable article found")
             return None
         
-        # Step 3: Mark article as used BEFORE rewriting
+        # Step 3: IMMEDIATELY blacklist the URL permanently
+        print(f"PERMANENTLY BLACKLISTING URL: {chosen_article['url']}")
+        self.url_tracker.blacklist_url(chosen_article['url'], chosen_article['title'])
+        
+        # Step 4: Mark article as used (keeping for backwards compatibility)
         self.article_tracker.mark_article_used(
             chosen_article['url'], 
             chosen_article['title'], 
             chosen_article['category']
         )
         
-        # Step 4: Extract external links from original article
+        # Step 5: Extract external links from original article
         print("Extracting external links from original article...")
         original_external_links = self.external_linking.extract_links_from_original(chosen_article['url'])
         
-        # Step 5: Rewrite with Claude
+        # Step 6: Rewrite with Claude
         print(f"Rewriting article: {chosen_article['title'][:50]}...")
         rewritten = self.rewrite_cannabis_article(chosen_article)
         
         if rewritten:
             print("✓ Article generation completed successfully")
             
-            # Step 6: Add primary tag and secondary tag (like Canadian processor)
+            # Step 7: Add primary tag and secondary tag (like Canadian processor)
             secondary_tag = rewritten.get('tag', 'business')
             rewritten['tags'] = ['US Cannabis News', secondary_tag]
             
@@ -385,24 +386,24 @@ class CannabisNewsProcessor:
             if 'tag' in rewritten:
                 del rewritten['tag']
             
-            # Step 7: Add internal links
+            # Step 8: Add internal links
             print("Adding internal links...")
             rewritten['content'] = self.internal_linking.add_internal_links(
                 rewritten['content'], 
                 rewritten['title']
             )
             
-            # Step 8: Find additional external sources if needed
+            # Step 9: Find additional external sources if needed
             additional_sources = self.external_linking.find_additional_sources(
                 rewritten['content'], 
                 rewritten['title'], 
                 len(original_external_links)
             )
             
-            # Step 9: Combine all external links
+            # Step 10: Combine all external links
             all_external_links = original_external_links + additional_sources
             
-            # Step 10: Add external links to content
+            # Step 11: Add external links to content
             if all_external_links:
                 rewritten['content'] = self.external_linking.add_external_links_to_content(
                     rewritten['content'], 
@@ -416,5 +417,4 @@ class CannabisNewsProcessor:
         else:
             print("✗ Article generation failed")
         
-
         return rewritten
