@@ -1,4 +1,4 @@
-import request
+import requests
 from bs4 import BeautifulSoup
 from anthropic import Anthropic
 from config import ANTHROPIC_API_KEY, WP_TAG_MAPPING
