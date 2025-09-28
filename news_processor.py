@@ -5,9 +5,9 @@ from config import ANTHROPIC_API_KEY, WP_TAG_MAPPING
 from article_tracker import ArticleTracker
 from internal_linking import InternalLinking
 from external_linking import ExternalLinking
-from permanent_url_tracker import PermanentURLTracker
 import random
 import time
+from datetime import datetime, timedelta
 
 class CannabisNewsProcessor:
     def __init__(self):
@@ -15,10 +15,54 @@ class CannabisNewsProcessor:
         self.article_tracker = ArticleTracker()
         self.internal_linking = InternalLinking()
         self.external_linking = ExternalLinking()
-        self.url_tracker = PermanentURLTracker()  # NEW: Permanent URL blacklist
+        # Only process articles from last 2 weeks
+        self.cutoff_date = datetime.now() - timedelta(days=14)
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
+    
+    def is_article_too_old(self, article_data):
+        """Check if article is older than 2 weeks"""
+        title = article_data.get('title', '')
+        content = article_data.get('content', '')
+        
+        # Look for date patterns like "September 25, 2025"
+        import re
+        
+        search_text = f"{title} {content}"
+        
+        month_patterns = [
+            r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})',
+            r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),?\s+(\d{4})'
+        ]
+        
+        month_map = {
+            'january': 1, 'jan': 1, 'february': 2, 'feb': 2, 'march': 3, 'mar': 3,
+            'april': 4, 'apr': 4, 'may': 5, 'june': 6, 'jun': 6,
+            'july': 7, 'jul': 7, 'august': 8, 'aug': 8, 'september': 9, 'sep': 9,
+            'october': 10, 'oct': 10, 'november': 11, 'nov': 11, 'december': 12, 'dec': 12
+        }
+        
+        for pattern in month_patterns:
+            matches = re.finditer(pattern, search_text, re.IGNORECASE)
+            for match in matches:
+                try:
+                    month_name = match.group(1).lower()
+                    day = int(match.group(2))
+                    year = int(match.group(3))
+                    
+                    if month_name in month_map:
+                        month = month_map[month_name]
+                        article_date = datetime(year, month, day)
+                        
+                        if article_date < self.cutoff_date:
+                            print(f"Skipping old article from {article_date.date()}: {title[:50]}...")
+                            return True
+                except (ValueError, IndexError):
+                    continue
+        
+        # If no date found, assume it's recent enough
+        return False
     
     def scrape_marijuana_moment_articles(self):
         """Scrape articles specifically from Marijuana Moment"""
@@ -65,15 +109,16 @@ class CannabisNewsProcessor:
                     print(f"  Total article links found: {len(article_links)}")
                     
                     # Process more articles and randomize order
-                    random.shuffle(article_links)  # Randomize the order
-                    articles_to_process = min(10, len(article_links))  # Process up to 10 instead of 5
+                    random.shuffle(article_links)
+                    articles_to_process = min(10, len(article_links))
                     
                     for article_link in article_links[:articles_to_process]:
                         article_url = article_link['url']
                         title = article_link['title']
                         
-                        # NEW: Check permanent URL blacklist
-                        if self.url_tracker.is_url_blacklisted(article_url):
+                        # Check if already used in JSON file
+                        if self.article_tracker.is_article_used(article_url):
+                            print(f"  Skipping already used: {title[:50]}...")
                             continue
                         
                         print(f"  Processing: {article_url}")
@@ -81,18 +126,24 @@ class CannabisNewsProcessor:
                         # Get article content
                         content = self.extract_marijuana_moment_content(article_url)
                         if content and len(content.split()) >= 200:
-                            articles.append({
+                            article_data = {
                                 'url': article_url,
                                 'title': title,
                                 'content': content,
                                 'category': category,
                                 'word_count': len(content.split())
-                            })
+                            }
+                            
+                            # Check if article is too old (older than 2 weeks)
+                            if self.is_article_too_old(article_data):
+                                continue
+                            
+                            articles.append(article_data)
                             print(f"  ✓ Added article: {title[:50]}... ({len(content.split())} words)")
                         else:
                             print(f"  ✗ Skipped (content too short or extraction failed)")
                         
-                        time.sleep(2)  # Be respectful with requests
+                        time.sleep(2)
                         
             except Exception as e:
                 print(f"Error scraping {category}: {e}")
@@ -134,9 +185,8 @@ class CannabisNewsProcessor:
             return False
         
         # Article URLs should have multiple words separated by hyphens
-        # Like: "indiana-gop-governor-says-federal-marijuana-rescheduling..."
         path_clean = path.strip('/')
-        if path_clean.count('-') < 3:  # Articles usually have many hyphens
+        if path_clean.count('-') < 3:
             return False
         
         # Should not end with common non-article extensions
@@ -156,7 +206,7 @@ class CannabisNewsProcessor:
                 
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Get the article element (we know this works)
+            # Get the article element
             article_element = soup.select_one('article')
             if article_element:
                 print(f"    Found article element")
@@ -173,7 +223,7 @@ class CannabisNewsProcessor:
                             'published', 'by kyle jaeger', 'marijuana moment',
                             'subscribe', 'remove ads', 'hours ago', 'minutes ago'
                         ]) and
-                        not text in ['on', 'By']):  # Filter out single words
+                        not text in ['on', 'By']):
                         substantial_paragraphs.append(text)
                 
                 if substantial_paragraphs:
@@ -181,7 +231,6 @@ class CannabisNewsProcessor:
                     word_count = len(clean_text.split())
                     
                     print(f"    ✓ Extracted {word_count} words from article")
-                    print(f"    Preview: {clean_text[:200]}...")
                     return clean_text
                 else:
                     print(f"    ✗ No substantial paragraphs found after filtering")
@@ -195,15 +244,14 @@ class CannabisNewsProcessor:
             return None
     
     def scrape_cannabis_articles(self):
-        """Main scraping method - focus on Marijuana Moment for now"""
+        """Main scraping method"""
         print("Scraping cannabis news sources...")
         
-        # Focus on Marijuana Moment since mjbizdaily is blocking us
         articles = self.scrape_marijuana_moment_articles()
         
         print(f"Total articles scraped: {len(articles)}")
         
-        # Filter out already used articles (keeping this for backwards compatibility)
+        # Filter out already used articles (this is additional safety)
         unused_articles = self.article_tracker.get_unused_articles(articles)
         
         return unused_articles
@@ -279,8 +327,6 @@ class CannabisNewsProcessor:
             
             print("✓ Received response from Claude")
             claude_response = response.content[0].text
-            print(f"Claude response length: {len(claude_response)} characters")
-            print(f"Claude response preview: {claude_response[:300]}...")
             
             parsed = self.parse_cannabis_response(claude_response)
             print(f"Parsed response - Title: {parsed.get('title', 'NO TITLE')}")
@@ -328,12 +374,6 @@ class CannabisNewsProcessor:
             'tag': tag
         }
         
-        print(f"Final parsed result:")
-        print(f"  Title: {result['title']}")
-        print(f"  Category: {result['category']}")
-        print(f"  Tag: {result['tag']}")
-        print(f"  Content length: {len(result['content'])}")
-        
         return result
     
     def get_cannabis_article(self):
@@ -356,29 +396,25 @@ class CannabisNewsProcessor:
             print("No suitable article found")
             return None
         
-        # Step 3: IMMEDIATELY blacklist the URL permanently
-        print(f"PERMANENTLY BLACKLISTING URL: {chosen_article['url']}")
-        self.url_tracker.blacklist_url(chosen_article['url'], chosen_article['title'])
-        
-        # Step 4: Mark article as used (keeping for backwards compatibility)
+        # Step 3: Mark article as used in JSON file
         self.article_tracker.mark_article_used(
             chosen_article['url'], 
             chosen_article['title'], 
             chosen_article['category']
         )
         
-        # Step 5: Extract external links from original article
+        # Step 4: Extract external links from original article
         print("Extracting external links from original article...")
         original_external_links = self.external_linking.extract_links_from_original(chosen_article['url'])
         
-        # Step 6: Rewrite with Claude
+        # Step 5: Rewrite with Claude
         print(f"Rewriting article: {chosen_article['title'][:50]}...")
         rewritten = self.rewrite_cannabis_article(chosen_article)
         
         if rewritten:
             print("✓ Article generation completed successfully")
             
-            # Step 7: Add primary tag and secondary tag (like Canadian processor)
+            # Step 6: Add primary tag and secondary tag
             secondary_tag = rewritten.get('tag', 'business')
             rewritten['tags'] = ['US Cannabis News', secondary_tag]
             
@@ -386,24 +422,24 @@ class CannabisNewsProcessor:
             if 'tag' in rewritten:
                 del rewritten['tag']
             
-            # Step 8: Add internal links
+            # Step 7: Add internal links
             print("Adding internal links...")
             rewritten['content'] = self.internal_linking.add_internal_links(
                 rewritten['content'], 
                 rewritten['title']
             )
             
-            # Step 9: Find additional external sources if needed
+            # Step 8: Find additional external sources if needed
             additional_sources = self.external_linking.find_additional_sources(
                 rewritten['content'], 
                 rewritten['title'], 
                 len(original_external_links)
             )
             
-            # Step 10: Combine all external links
+            # Step 9: Combine all external links
             all_external_links = original_external_links + additional_sources
             
-            # Step 11: Add external links to content
+            # Step 10: Add external links to content
             if all_external_links:
                 rewritten['content'] = self.external_linking.add_external_links_to_content(
                     rewritten['content'], 
