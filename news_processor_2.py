@@ -5,9 +5,9 @@ from config import ANTHROPIC_API_KEY, WP_TAG_MAPPING
 from article_tracker import ArticleTracker
 from internal_linking import InternalLinking
 from external_linking import ExternalLinking
-from permanent_url_tracker import PermanentURLTracker
 import random
 import time
+from datetime import datetime, timedelta
 
 class CannabisNewsProcessor2:
     def __init__(self):
@@ -15,10 +15,94 @@ class CannabisNewsProcessor2:
         self.article_tracker = ArticleTracker()
         self.internal_linking = InternalLinking()
         self.external_linking = ExternalLinking()
-        self.url_tracker = PermanentURLTracker()  # NEW: Permanent URL blacklist
+        # Only process articles from last 2 weeks
+        self.cutoff_date = datetime.now() - timedelta(days=14)
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
+    
+    def is_article_too_old(self, article_data):
+        """Check if article is older than 2 weeks"""
+        title = article_data.get('title', '')
+        content = article_data.get('content', '')
+        
+        # Look for date patterns like "September 25, 2025"
+        import re
+        
+        search_text = f"{title} {content}"
+        
+        month_patterns = [
+            r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})',
+            r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),?\s+(\d{4})'
+        ]
+        
+        month_map = {
+            'january': 1, 'jan': 1, 'february': 2, 'feb': 2, 'march': 3, 'mar': 3,
+            'april': 4, 'apr': 4, 'may': 5, 'june': 6, 'jun': 6,
+            'july': 7, 'jul': 7, 'august': 8, 'aug': 8, 'september': 9, 'sep': 9,
+            'october': 10, 'oct': 10, 'november': 11, 'nov': 11, 'december': 12, 'dec': 12
+        }
+        
+        for pattern in month_patterns:
+            matches = re.finditer(pattern, search_text, re.IGNORECASE)
+            for match in matches:
+                try:
+                    month_name = match.group(1).lower()
+                    day = int(match.group(2))
+                    year = int(match.group(3))
+                    
+                    if month_name in month_map:
+                        month = month_map[month_name]
+                        article_date = datetime(year, month, day)
+                        
+                        if article_date < self.cutoff_date:
+                            print(f"Skipping old article from {article_date.date()}: {title[:50]}...")
+                            return True
+                except (ValueError, IndexError):
+                    continue
+        
+        # If no date found, assume it's recent enough
+        return False
+    
+    def determine_category(self, content, title):
+        """Determine article category based on content and title"""
+        content_lower = content.lower()
+        title_lower = title.lower()
+        
+        # Politics keywords
+        politics_keywords = [
+            'regulation', 'law', 'legal', 'government', 'policy', 'legislation',
+            'congress', 'senate', 'house', 'vote', 'bill', 'dea', 'fda',
+            'state law', 'federal', 'politician', 'governor', 'mayor'
+        ]
+        
+        # Business keywords  
+        business_keywords = [
+            'company', 'revenue', 'profit', 'investment', 'funding', 'ipo',
+            'merger', 'acquisition', 'stock', 'market', 'sales', 'earnings',
+            'business', 'industry', 'corporation', 'startup', 'ceo'
+        ]
+        
+        # Culture keywords
+        culture_keywords = [
+            'consumer', 'lifestyle', 'community', 'social', 'culture',
+            'trend', 'survey', 'study', 'research', 'opinion', 'behavior'
+        ]
+        
+        # Count keyword matches
+        text_to_check = content_lower + ' ' + title_lower
+        
+        politics_count = sum(1 for keyword in politics_keywords if keyword in text_to_check)
+        business_count = sum(1 for keyword in business_keywords if keyword in text_to_check)
+        culture_count = sum(1 for keyword in culture_keywords if keyword in text_to_check)
+        
+        # Return category with most matches, default to business
+        if politics_count > business_count and politics_count > culture_count:
+            return 'politics'
+        elif culture_count > business_count and culture_count > politics_count:
+            return 'culture'
+        else:
+            return 'business'
     
     def scrape_cannabis_business_times_articles(self):
         """Scrape articles from Cannabis Business Times top stories"""
@@ -65,8 +149,9 @@ class CannabisNewsProcessor2:
                     article_url = article_link['url']
                     title = article_link['title']
                     
-                    # NEW: Check permanent URL blacklist
-                    if self.url_tracker.is_url_blacklisted(article_url):
+                    # Check if already used in JSON file
+                    if self.article_tracker.is_article_used(article_url):
+                        print(f"  Skipping already used: {title[:50]}...")
                         continue
                     
                     print(f"  Processing: {article_url}")
@@ -76,13 +161,19 @@ class CannabisNewsProcessor2:
                     if content and len(content.split()) >= 200:
                         # Auto-categorize based on content or use business as default
                         category = self.determine_category(content, title)
-                        articles.append({
+                        article_data = {
                             'url': article_url,
                             'title': title,
                             'content': content,
                             'category': category,
                             'word_count': len(content.split())
-                        })
+                        }
+                        
+                        # Check if article is too old (older than 2 weeks)
+                        if self.is_article_too_old(article_data):
+                            continue
+                        
+                        articles.append(article_data)
                         print(f"  ✓ Added article: {title[:50]}... ({len(content.split())} words) - {category}")
                     else:
                         print(f"  ✗ Skipped (content too short or extraction failed)")
@@ -134,20 +225,27 @@ class CannabisNewsProcessor2:
                 # Randomize and process articles
                 random.shuffle(article_links)
                 for article_link in article_links[:5]:
-                    # NEW: Check permanent URL blacklist
-                    if self.url_tracker.is_url_blacklisted(article_link['url']):
+                    # Check if already used in JSON file
+                    if self.article_tracker.is_article_used(article_link['url']):
+                        print(f"  Skipping already used: {article_link['title'][:50]}...")
                         continue
                         
                     content = self.extract_generic_content(article_link['url'])
                     if content and len(content.split()) >= 200:
                         category = self.determine_category(content, article_link['title'])
-                        articles.append({
+                        article_data = {
                             'url': article_link['url'],
                             'title': article_link['title'],
                             'content': content,
                             'category': category,
                             'word_count': len(content.split())
-                        })
+                        }
+                        
+                        # Check if article is too old (older than 2 weeks)
+                        if self.is_article_too_old(article_data):
+                            continue
+                        
+                        articles.append(article_data)
                         print(f"  ✓ Added Hemp Today article: {article_link['title'][:50]}... ({len(content.split())} words) - {category}")
                     time.sleep(2)
                     
@@ -155,46 +253,6 @@ class CannabisNewsProcessor2:
             print(f"Error scraping Hemp Today: {e}")
         
         return articles
-    
-    def determine_category(self, content, title):
-        """Determine article category based on content and title"""
-        content_lower = content.lower()
-        title_lower = title.lower()
-        
-        # Politics keywords
-        politics_keywords = [
-            'regulation', 'law', 'legal', 'government', 'policy', 'legislation',
-            'congress', 'senate', 'house', 'vote', 'bill', 'dea', 'fda',
-            'state law', 'federal', 'politician', 'governor', 'mayor'
-        ]
-        
-        # Business keywords  
-        business_keywords = [
-            'company', 'revenue', 'profit', 'investment', 'funding', 'ipo',
-            'merger', 'acquisition', 'stock', 'market', 'sales', 'earnings',
-            'business', 'industry', 'corporation', 'startup', 'ceo'
-        ]
-        
-        # Culture keywords
-        culture_keywords = [
-            'consumer', 'lifestyle', 'community', 'social', 'culture',
-            'trend', 'survey', 'study', 'research', 'opinion', 'behavior'
-        ]
-        
-        # Count keyword matches
-        text_to_check = content_lower + ' ' + title_lower
-        
-        politics_count = sum(1 for keyword in politics_keywords if keyword in text_to_check)
-        business_count = sum(1 for keyword in business_keywords if keyword in text_to_check)
-        culture_count = sum(1 for keyword in culture_keywords if keyword in text_to_check)
-        
-        # Return category with most matches, default to business
-        if politics_count > business_count and politics_count > culture_count:
-            return 'politics'
-        elif culture_count > business_count and culture_count > politics_count:
-            return 'culture'
-        else:
-            return 'business'
     
     def is_article_url(self, url):
         """Check if URL looks like an actual article (not navigation)"""
@@ -304,7 +362,7 @@ class CannabisNewsProcessor2:
         
         print(f"Total articles scraped: {len(all_articles)}")
         
-        # Filter out already used articles (keeping for backwards compatibility)
+        # Filter out already used articles (this is additional safety)
         unused_articles = self.article_tracker.get_unused_articles(all_articles)
         
         return unused_articles
@@ -449,29 +507,25 @@ class CannabisNewsProcessor2:
             print("No suitable article found")
             return None
         
-        # Step 3: IMMEDIATELY blacklist the URL permanently
-        print(f"PERMANENTLY BLACKLISTING URL: {chosen_article['url']}")
-        self.url_tracker.blacklist_url(chosen_article['url'], chosen_article['title'])
-        
-        # Step 4: Mark article as used (keeping for backwards compatibility)
+        # Step 3: Mark article as used in JSON file
         self.article_tracker.mark_article_used(
             chosen_article['url'], 
             chosen_article['title'], 
             chosen_article['category']
         )
         
-        # Step 5: Extract external links from original article
+        # Step 4: Extract external links from original article
         print("Extracting external links from original article...")
         original_external_links = self.external_linking.extract_links_from_original(chosen_article['url'])
         
-        # Step 6: Rewrite with Claude
+        # Step 5: Rewrite with Claude
         print(f"Rewriting article: {chosen_article['title'][:50]}...")
         rewritten = self.rewrite_cannabis_article(chosen_article)
         
         if rewritten:
             print("✓ Article generation completed successfully")
             
-            # Step 7: Add primary tag and secondary tag
+            # Step 6: Add primary tag and secondary tag
             secondary_tag = rewritten.get('tag', 'business')
             rewritten['tags'] = ['US Cannabis News', secondary_tag]
             
@@ -479,24 +533,24 @@ class CannabisNewsProcessor2:
             if 'tag' in rewritten:
                 del rewritten['tag']
             
-            # Step 8: Add internal links
+            # Step 7: Add internal links
             print("Adding internal links...")
             rewritten['content'] = self.internal_linking.add_internal_links(
                 rewritten['content'], 
                 rewritten['title']
             )
             
-            # Step 9: Find additional external sources if needed
+            # Step 8: Find additional external sources if needed
             additional_sources = self.external_linking.find_additional_sources(
                 rewritten['content'], 
                 rewritten['title'], 
                 len(original_external_links)
             )
             
-            # Step 10: Combine all external links
+            # Step 9: Combine all external links
             all_external_links = original_external_links + additional_sources
             
-            # Step 11: Add external links to content
+            # Step 10: Add external links to content
             if all_external_links:
                 rewritten['content'] = self.external_linking.add_external_links_to_content(
                     rewritten['content'], 
