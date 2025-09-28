@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from anthropic import Anthropic
 from config import ANTHROPIC_API_KEY, WP_TAG_MAPPING
-from article_tracker import ArticleTracker
+from database_article_tracker import DatabaseArticleTracker as ArticleTracker
 from internal_linking import InternalLinking
 from external_linking import ExternalLinking
 import random
@@ -454,3 +454,4 @@ class CannabisNewsProcessor:
             print("✗ Article generation failed")
         
         return rewritten
+
