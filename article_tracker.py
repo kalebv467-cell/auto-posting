@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 class ArticleTracker:
     def __init__(self):
@@ -61,27 +61,6 @@ class ArticleTracker:
         
         print(f"Found {len(unused_articles)} unused articles out of {len(articles_list)} total")
         return unused_articles
-    
-    def cleanup_old_entries(self, days_to_keep=30):
-        """Remove entries older than specified days to prevent file from growing too large"""
-        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
-        
-        articles_to_remove = []
-        for url, data in self.used_articles.items():
-            try:
-                used_date = datetime.fromisoformat(data['used_date'])
-                if used_date < cutoff_date:
-                    articles_to_remove.append(url)
-            except:
-                # If date parsing fails, remove the entry
-                articles_to_remove.append(url)
-        
-        for url in articles_to_remove:
-            del self.used_articles[url]
-        
-        if articles_to_remove:
-            print(f"Cleaned up {len(articles_to_remove)} old entries")
-            self.save_used_articles()
     
     def get_stats(self):
         """Get statistics about used articles"""
