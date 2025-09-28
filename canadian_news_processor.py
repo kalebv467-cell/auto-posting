@@ -5,9 +5,9 @@ from config import ANTHROPIC_API_KEY, WP_TAG_MAPPING
 from article_tracker import ArticleTracker
 from internal_linking import InternalLinking
 from external_linking import ExternalLinking
-from permanent_url_tracker import PermanentURLTracker
 import random
 import time
+from datetime import datetime, timedelta
 
 class CanadianNewsProcessor:
     def __init__(self):
@@ -15,10 +15,54 @@ class CanadianNewsProcessor:
         self.article_tracker = ArticleTracker()
         self.internal_linking = InternalLinking()
         self.external_linking = ExternalLinking()
-        self.url_tracker = PermanentURLTracker()  # NEW: Permanent URL blacklist
+        # Only process articles from last 2 weeks
+        self.cutoff_date = datetime.now() - timedelta(days=14)
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
+    
+    def is_article_too_old(self, article_data):
+        """Check if article is older than 2 weeks"""
+        title = article_data.get('title', '')
+        content = article_data.get('content', '')
+        
+        # Look for date patterns like "September 25, 2025"
+        import re
+        
+        search_text = f"{title} {content}"
+        
+        month_patterns = [
+            r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})',
+            r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),?\s+(\d{4})'
+        ]
+        
+        month_map = {
+            'january': 1, 'jan': 1, 'february': 2, 'feb': 2, 'march': 3, 'mar': 3,
+            'april': 4, 'apr': 4, 'may': 5, 'june': 6, 'jun': 6,
+            'july': 7, 'jul': 7, 'august': 8, 'aug': 8, 'september': 9, 'sep': 9,
+            'october': 10, 'oct': 10, 'november': 11, 'nov': 11, 'december': 12, 'dec': 12
+        }
+        
+        for pattern in month_patterns:
+            matches = re.finditer(pattern, search_text, re.IGNORECASE)
+            for match in matches:
+                try:
+                    month_name = match.group(1).lower()
+                    day = int(match.group(2))
+                    year = int(match.group(3))
+                    
+                    if month_name in month_map:
+                        month = month_map[month_name]
+                        article_date = datetime(year, month, day)
+                        
+                        if article_date < self.cutoff_date:
+                            print(f"Skipping old article from {article_date.date()}: {title[:50]}...")
+                            return True
+                except (ValueError, IndexError):
+                    continue
+        
+        # If no date found, assume it's recent enough
+        return False
     
     def scrape_stratcann_articles(self):
         """Scrape articles from StratCann"""
@@ -55,20 +99,27 @@ class CanadianNewsProcessor:
                 # Randomize and process articles
                 random.shuffle(article_links)
                 for article_link in article_links[:5]:
-                    # NEW: Check permanent URL blacklist
-                    if self.url_tracker.is_url_blacklisted(article_link['url']):
+                    # Check if already used in JSON file
+                    if self.article_tracker.is_article_used(article_link['url']):
+                        print(f"  Skipping already used: {article_link['title'][:50]}...")
                         continue
                         
                     content = self.extract_generic_content(article_link['url'])
                     if content and len(content.split()) >= 200:
-                        articles.append({
+                        article_data = {
                             'url': article_link['url'],
                             'title': article_link['title'],
                             'content': content,
                             'category': 'canadian',
                             'word_count': len(content.split()),
                             'source': 'stratcann'
-                        })
+                        }
+                        
+                        # Check if article is too old (older than 2 weeks)
+                        if self.is_article_too_old(article_data):
+                            continue
+                        
+                        articles.append(article_data)
                         print(f"  ✓ Added StratCann article: {article_link['title'][:50]}... ({len(content.split())} words)")
                     time.sleep(2)
                     
@@ -109,20 +160,27 @@ class CanadianNewsProcessor:
                 # Randomize and process articles
                 random.shuffle(article_links)
                 for article_link in article_links[:5]:
-                    # NEW: Check permanent URL blacklist
-                    if self.url_tracker.is_url_blacklisted(article_link['url']):
+                    # Check if already used in JSON file
+                    if self.article_tracker.is_article_used(article_link['url']):
+                        print(f"  Skipping already used: {article_link['title'][:50]}...")
                         continue
                         
                     content = self.extract_generic_content(article_link['url'])
                     if content and len(content.split()) >= 200:
-                        articles.append({
+                        article_data = {
                             'url': article_link['url'],
                             'title': article_link['title'],
                             'content': content,
                             'category': 'canadian',
                             'word_count': len(content.split()),
                             'source': 'newcannabisventures'
-                        })
+                        }
+                        
+                        # Check if article is too old (older than 2 weeks)
+                        if self.is_article_too_old(article_data):
+                            continue
+                        
+                        articles.append(article_data)
                         print(f"  ✓ Added NCV article: {article_link['title'][:50]}... ({len(content.split())} words)")
                     time.sleep(2)
                     
@@ -159,20 +217,26 @@ class CanadianNewsProcessor:
                             'cannabis' in href.lower() and
                             len(text) > 10):
                             
-                            # NEW: Check permanent URL blacklist
-                            if self.url_tracker.is_url_blacklisted(href):
+                            # Check if already used in JSON file
+                            if self.article_tracker.is_article_used(href):
                                 continue
                                 
                             content = self.extract_generic_content(href)
                             if content and len(content.split()) >= 200:
-                                articles.append({
+                                article_data = {
                                     'url': href,
                                     'title': text,
                                     'content': content,
                                     'category': 'canadian',
                                     'word_count': len(content.split()),
                                     'source': 'health_canada'
-                                })
+                                }
+                                
+                                # Check if article is too old (older than 2 weeks)
+                                if self.is_article_too_old(article_data):
+                                    continue
+                                
+                                articles.append(article_data)
                                 print(f"  ✓ Added Health Canada article: {text[:50]}... ({len(content.split())} words)")
                                 break
                             time.sleep(2)
@@ -247,6 +311,8 @@ class CanadianNewsProcessor:
         all_articles.extend(self.scrape_health_canada_updates())
         
         print(f"Total Canadian articles scraped: {len(all_articles)}")
+        
+        # Filter out already used articles (this is additional safety)
         unused_articles = self.article_tracker.get_unused_articles(all_articles)
         
         return unused_articles
@@ -395,11 +461,7 @@ class CanadianNewsProcessor:
             print("No suitable Canadian article found")
             return None
         
-        # IMMEDIATELY blacklist the URL permanently
-        print(f"PERMANENTLY BLACKLISTING URL: {chosen_article['url']}")
-        self.url_tracker.blacklist_url(chosen_article['url'], chosen_article['title'])
-        
-        # Keep old tracking for backwards compatibility
+        # Mark article as used in JSON file
         self.article_tracker.mark_article_used(
             chosen_article['url'], 
             chosen_article['title'], 
