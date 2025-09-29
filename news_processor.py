@@ -308,6 +308,7 @@ class CannabisNewsProcessor:
         5. Use proper heading structure with H2 and H3 tags ONLY (NO H1 tags - WordPress will handle the main title)
         6. This will be tagged as: {wp_tag}
         7. Focus on the {category} aspect of cannabis news
+        8. Attempt to add something more than what the first text adds, give an American perspective and why it matters to readers
 
         FORMAT YOUR RESPONSE EXACTLY AS:
         TITLE: [Your new title here]
@@ -454,4 +455,5 @@ class CannabisNewsProcessor:
             print("✗ Article generation failed")
         
         return rewritten
+
 
