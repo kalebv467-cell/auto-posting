@@ -20,8 +20,9 @@ class ImageManager:
             print(f"Images folder not found: {self.images_folder}")
             return None
         
-        # Look for images that match the category
-        all_images = [f for f in os.listdir(self.images_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
+        # Look for images that match the category (now includes .avif)
+        all_images = [f for f in os.listdir(self.images_folder) 
+                     if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.avif'))]
         
         if not all_images:
             print("No images found in images folder")
@@ -44,13 +45,30 @@ class ImageManager:
         print(f"Chose image: {chosen_image}")
         return full_path
     
+    def get_mime_type(self, image_path):
+        """Determine MIME type based on file extension"""
+        ext = os.path.splitext(image_path)[1].lower()
+        mime_types = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.webp': 'image/webp',
+            '.avif': 'image/avif'
+        }
+        return mime_types.get(ext, 'image/jpeg')
+    
     def upload_image_to_wordpress(self, image_path, title="Cannabis News Image"):
         """Upload image to WordPress media library"""
         try:
             print(f"Uploading image: {image_path}")
+            
+            # Get the correct MIME type for this image
+            mime_type = self.get_mime_type(image_path)
+            print(f"Detected MIME type: {mime_type}")
+            
             with open(image_path, 'rb') as img_file:
                 files = {
-                    'file': (os.path.basename(image_path), img_file, 'image/jpeg')
+                    'file': (os.path.basename(image_path), img_file, mime_type)
                 }
                 
                 data = {
