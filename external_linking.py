@@ -19,6 +19,7 @@ class ExternalLinking:
            'newcannabisventures.com',  # Added Canadian source
            'seekingalpha.com',
            'cannabisbusinesstimes.com',
+           'internationalcbc.com',
            'hemptoday.net',
            'form.jotform.com',
            'patreon.com',
@@ -237,4 +238,5 @@ class ExternalLinking:
            print(f"Error adding external links: {e}")
 
            return content
+
 
