@@ -246,6 +246,73 @@ class CanadianNewsProcessor:
         
         return articles
     
+    def scrape_internationalcbc_articles(self):
+        """Scrape articles from International CBC"""
+        articles = []
+        try:
+            print("Scraping from International CBC...")
+            response = requests.get('https://internationalcbc.com/blog/', headers=self.headers, timeout=15)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                all_links = soup.find_all('a', href=True)
+                
+                article_links = []
+                for link in all_links:
+                    href = link.get('href', '')
+                    text = link.get_text().strip()
+                    
+                    if not href.startswith('http'):
+                        if href.startswith('/'):
+                            href = 'https://internationalcbc.com' + href
+                        else:
+                            continue
+                    
+                    # Check if this looks like an International CBC blog article
+                    # Exclude category pages and ensure it's a blog post
+                    if (href.startswith('https://internationalcbc.com/blog/') and 
+                        '/category' not in href and
+                        len(href.split('/')) > 4 and
+                        len(text) > 10):
+                        article_links.append({
+                            'url': href,
+                            'title': text
+                        })
+                        print(f"  Found International CBC article: {text[:60]}...")
+                
+                # Randomize and process articles
+                random.shuffle(article_links)
+                for article_link in article_links[:5]:
+                    # Check if already used in JSON file
+                    if self.article_tracker.is_article_used(article_link['url']):
+                        print(f"  Skipping already used: {article_link['title'][:50]}...")
+                        continue
+                        
+                    content = self.extract_generic_content(article_link['url'])
+                    # Require at least 300 words
+                    if content and len(content.split()) >= 300:
+                        article_data = {
+                            'url': article_link['url'],
+                            'title': article_link['title'],
+                            'content': content,
+                            'category': 'canadian',
+                            'word_count': len(content.split()),
+                            'source': 'internationalcbc'
+                        }
+                        
+                        # Check if article is too old (older than 2 weeks)
+                        if self.is_article_too_old(article_data):
+                            continue
+                        
+                        articles.append(article_data)
+                        print(f"  ✓ Added International CBC article: {article_link['title'][:50]}... ({len(content.split())} words)")
+                    time.sleep(2)
+                    
+        except Exception as e:
+            print(f"Error scraping International CBC: {e}")
+        
+        return articles
+    
     def extract_generic_content(self, url):
         """Extract content from any Canadian cannabis news article"""
         try:
@@ -309,6 +376,7 @@ class CanadianNewsProcessor:
         all_articles.extend(self.scrape_stratcann_articles())
         all_articles.extend(self.scrape_newcannabisventures_articles())
         all_articles.extend(self.scrape_health_canada_updates())
+        all_articles.extend(self.scrape_internationalcbc_articles())
         
         print(f"Total Canadian articles scraped: {len(all_articles)}")
         
@@ -511,5 +579,3 @@ class CanadianNewsProcessor:
             print("✗ Canadian article generation failed")
         
         return rewritten
-
-
