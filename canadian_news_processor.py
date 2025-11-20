@@ -65,8 +65,10 @@ class CanadianNewsProcessor:
         return False
     
     def scrape_stratcann_articles(self):
-        """Scrape articles from StratCann"""
+        """Scrape articles from StratCann - FIXED to catch all article patterns"""
         articles = []
+        seen_urls = set()
+        
         try:
             print("Scraping from StratCann...")
             response = requests.get('https://stratcann.com/news/', headers=self.headers, timeout=15)
@@ -86,10 +88,34 @@ class CanadianNewsProcessor:
                         else:
                             continue
                     
-                    # Check if this looks like a StratCann news article
-                    if (href.startswith('https://stratcann.com/news/') and 
-                        len(href.split('/')) > 4 and 
-                        len(text) > 10):
+                    # Skip if we've already seen this URL
+                    if href in seen_urls:
+                        continue
+                    
+                    # Get the slug (last non-empty part of URL)
+                    url_parts = [p for p in href.rstrip('/').split('/') if p]
+                    slug = url_parts[-1] if url_parts else ''
+                    
+                    # FIXED: Check if this is a StratCann article
+                    # Articles can be in /news/, /news/business/, /news/research/, /financials/, /insight/
+                    # Article slugs are hyphenated like "sqdc-to-launch-cannabis-vapes"
+                    # Exclude category pages, tag pages, and non-article slugs
+                    
+                    excluded_slugs = ['news', 'business', 'research', 'products', 'government', 
+                                     'financials', 'insight', 'profiles', 'international',
+                                     'events', 'about', 'subscribe', 'contact']
+                    
+                    is_stratcann_article = (
+                        href.startswith('https://stratcann.com/') and
+                        any(section in href for section in ['/news/', '/financials/', '/insight/']) and
+                        slug.lower() not in excluded_slugs and
+                        '-' in slug and  # Article slugs have hyphens
+                        len(slug) > 10 and  # Real article slugs are longer
+                        len(text) > 10
+                    )
+                    
+                    if is_stratcann_article:
+                        seen_urls.add(href)
                         article_links.append({
                             'url': href,
                             'title': text
@@ -247,17 +273,29 @@ class CanadianNewsProcessor:
         return articles
     
     def scrape_internationalcbc_articles(self):
-        """Scrape articles from International CBC"""
+        """Scrape articles from International CBC - FIXED: articles are at root level, not /blog/"""
         articles = []
+        seen_urls = set()
+        
         try:
             print("Scraping from International CBC...")
-            response = requests.get('https://internationalcbc.com/blog/', headers=self.headers, timeout=15)
+            # FIXED: Scrape from homepage - articles are linked from here at root level
+            response = requests.get('https://internationalcbc.com/', headers=self.headers, timeout=15)
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.content, 'html.parser')
                 all_links = soup.find_all('a', href=True)
                 
                 article_links = []
+                
+                # Paths to exclude (non-article pages)
+                excluded_paths = [
+                    '/blog/', '/category/', '/tag/', '/author/', '/page/',
+                    '/about/', '/contact/', '/privacy/', '/terms/',
+                    '/events/', '/sponsors/', '/tickets/', '/speakers/',
+                    '/register', '/login', '/cart/', '/checkout/'
+                ]
+                
                 for link in all_links:
                     href = link.get('href', '')
                     text = link.get_text().strip()
@@ -268,12 +306,29 @@ class CanadianNewsProcessor:
                         else:
                             continue
                     
-                    # Check if this looks like an International CBC blog article
-                    # Exclude category pages and ensure it's a blog post
-                    if (href.startswith('https://internationalcbc.com/blog/') and 
-                        '/category' not in href and
-                        len(href.split('/')) > 4 and
-                        len(text) > 10):
+                    # Skip duplicates
+                    if href in seen_urls:
+                        continue
+                    
+                    # Get slug
+                    url_parts = [p for p in href.rstrip('/').split('/') if p]
+                    slug = url_parts[-1] if url_parts else ''
+                    
+                    # FIXED: ICBC articles are at ROOT level like:
+                    # internationalcbc.com/cannabis-vaporizer-market-projected.../
+                    # NOT under /blog/
+                    
+                    is_icbc_article = (
+                        href.startswith('https://internationalcbc.com/') and
+                        not any(excl in href.lower() for excl in excluded_paths) and
+                        '-' in slug and  # Article slugs have hyphens
+                        len(slug) > 15 and  # Real article slugs are longer
+                        len(text) > 15 and
+                        href.rstrip('/') != 'https://internationalcbc.com'  # Not homepage
+                    )
+                    
+                    if is_icbc_article:
+                        seen_urls.add(href)
                         article_links.append({
                             'url': href,
                             'title': text
@@ -579,4 +634,3 @@ class CanadianNewsProcessor:
             print("✗ Canadian article generation failed")
         
         return rewritten
-
