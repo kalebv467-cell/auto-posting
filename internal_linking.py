@@ -24,6 +24,9 @@ class InternalLinking:
            'https://budscannacorner.ca/sativa-strain-reviews/': [
                'sativa strain', 'sativa strains', 'sativa strain review'
            ],
+           'https://budscannacorner.ca/cbd-products/best-cbd-pain-cream-canada/': [
+               'CBD pain creams', 'pain cream' 'topical CBD products', 'CBD pain relief products', 'CBD topicals for pain', 'legal CBD pain relief products', 'Health Canada-approved CBD topicals', 'compliant CBD pain creams', 'regulated CBD products for pain', 'licensed CBD pain relief options', 'federally legal CBD topicals', 'CBD pain products meeting Health Canada standards', 'topical CBD for pain management', 'CBD creams for arthritis relief', 'cannabidiol topical applications', 'therapeutic CBD topicals', 'CBD for chronic pain treatment', 'evidence-based CBD pain creams', 'CBD pain cream market in Canada', 'available CBD topical products', 'Canadian CBD pain relief market', 'CBD cream options for Canadians', 'top-rated CBD pain products', 'premium CBD pain creams', 'high-potency CBD topicals', 'CBD alternatives for pain relief', 'natural pain management with CBD', 'CBD topicals for inflammation', 'non-prescription CBD pain options', 'CBD for joint and muscle pain', 'holistic pain relief with CBD', 'CBD solutions for chronic pain', 'choosing CBD pain creams', 'CBD pain product selection', 'quality CBD topicals', 'third-party tested CBD creams', 'verified CBD pain relief products', 'Canadian CBD pain cream reviews', 'cannabidiol pain relief', 'CBD cream options', 'therapeutic CBD products'
+           ],
            'https://budscannacorner.ca/sativa-weed-high-and-effects/': [
                'sativa', 'sativa effects', 'sativa high'
            ],
@@ -223,4 +226,5 @@ class InternalLinking:
            print(f"Added link: '{phrase}' -> {url}")
        
        print(f"Added {len(linked_phrases)} internal links total")
+
        return linked_content
