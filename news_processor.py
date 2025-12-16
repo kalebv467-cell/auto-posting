@@ -309,7 +309,7 @@ class CannabisNewsProcessor:
         6. Use proper heading structure with H2 and H3 tags ONLY (NO H1 tags - WordPress will handle the main title)
         7. This will be tagged as: {wp_tag}
         8. Focus on the {category} aspect of cannabis news
-        9. Attempt to add something more than what the first text adds, give an American perspective and why it matters to readers. Meaningfully change the content to make it original for Google crawlers.
+        9. The article must be structured so that at least 60% of the content provides a detailed explanation of the news's significance, implications, and parallels for the Canadian cannabis market and its readers. This is the original, unique value.
 
         FORMAT YOUR RESPONSE EXACTLY AS:
         TITLE: [Your new title here]
@@ -456,6 +456,7 @@ class CannabisNewsProcessor:
             print("✗ Article generation failed")
         
         return rewritten
+
 
 
 
