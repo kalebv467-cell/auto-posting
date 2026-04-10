@@ -487,7 +487,7 @@ class CanadianNewsProcessor:
         9. If there is any mention of "stratcann", "NewCannabisVentures" ", internationalcbc", interviewing or getting information from people/companies, replace it with "BudsCannaCorner". NEVER mention Stratcann
         10. Focus on the Canadian cannabis industry and regulatory environment
         11. Determine the most appropriate category for this article based on content
-        12. Attempt to add something more than what the first text adds, give a canadian perspective and why it matters to canadians
+        12. Attempt to add something more than what the first text adds, give a canadian perspective and why it matters to canadians if possible
 
         CANADIAN ENGLISH REQUIREMENTS:
         - Use Canadian spelling: centre (not center), colour (not color), licence (not license as noun), organised (not organized), realise (not realize)
